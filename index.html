@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TimeFlow">
+  <meta name="theme-color" content="#0f172a">
+  <title>TimeFlow</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="app.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header id="header">
+      <div class="header-content">
+        <span class="app-name">TimeFlow</span>
+        <div class="header-right">
+          <span id="active-dot" class="header-active-dot hidden"></span>
+          <span id="current-time" class="header-time"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main-content">
+
+      <!-- TRACK TAB -->
+      <div id="tab-track" class="tab-pane active">
+        <div id="active-section"></div>
+        <div class="section-label">Quick Start</div>
+        <div id="activity-grid" class="activity-grid"></div>
+        <div id="break-alert" class="break-alert hidden"></div>
+      </div>
+
+      <!-- LOG TAB -->
+      <div id="tab-log" class="tab-pane">
+        <div class="log-date-nav">
+          <button class="date-nav-btn" onclick="changeLogDate(-1)">&#8249;</button>
+          <span id="log-date-label" class="log-date-label"></span>
+          <button class="date-nav-btn" onclick="changeLogDate(1)" id="log-next-btn">&#8250;</button>
+        </div>
+        <div id="log-entries" class="log-entries"></div>
+        <div id="log-summary" class="log-summary"></div>
+      </div>
+
+      <!-- TODAY TAB -->
+      <div id="tab-today" class="tab-pane">
+        <div class="dashboard-scroll">
+          <div class="chart-container">
+            <canvas id="today-chart"></canvas>
+            <div id="today-chart-empty" class="chart-empty hidden">
+              <div class="chart-empty-icon">⏱</div>
+              <p>Start tracking to see your day</p>
+            </div>
+          </div>
+          <div id="today-metrics" class="metrics-grid"></div>
+          <div id="today-wellbeing" class="wellbeing-section"></div>
+          <div id="today-wins" class="wins-section"></div>
+        </div>
+      </div>
+
+      <!-- WEEK TAB -->
+      <div id="tab-week" class="tab-pane">
+        <div class="dashboard-scroll">
+          <div class="chart-container chart-container-bar">
+            <canvas id="week-chart"></canvas>
+          </div>
+          <div id="week-metrics" class="metrics-grid"></div>
+          <div id="week-wellbeing" class="wellbeing-section"></div>
+          <div id="week-insights" class="insights-section"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS TAB -->
+      <div id="tab-settings" class="tab-pane">
+        <div class="settings-scroll">
+          <div id="settings-content"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav">
+      <button class="nav-btn active" data-tab="track" onclick="switchTab('track')">
+        <span class="nav-icon">&#9654;</span>
+        <span class="nav-label">Track</span>
+      </button>
+      <button class="nav-btn" data-tab="log" onclick="switchTab('log')">
+        <span class="nav-icon">&#128203;</span>
+        <span class="nav-label">Log</span>
+      </button>
+      <button class="nav-btn" data-tab="today" onclick="switchTab('today')">
+        <span class="nav-icon">&#128200;</span>
+        <span class="nav-label">Today</span>
+      </button>
+      <button class="nav-btn" data-tab="week" onclick="switchTab('week')">
+        <span class="nav-icon">&#128197;</span>
+        <span class="nav-label">Week</span>
+      </button>
+      <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')">
+        <span class="nav-icon">&#9881;</span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Modal Overlay -->
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="handleOverlayClick(event)">
+    <div class="modal-container">
+      <div class="modal">
+        <div id="modal-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
