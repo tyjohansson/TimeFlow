@@ -10,40 +10,50 @@ const KEYS = {
   NOTES:      'tf_daily_notes',
   SETTINGS:   'tf_settings',
   ACTIVE:     'tf_active',
+  TAGS:       'tf_tags',
 };
 
+const DEFAULT_TAGS = [
+  { id: 't1', name: 'Urgent', color: '#ef4444' },
+  { id: 't2', name: 'Focus',  color: '#8b5cf6' },
+  { id: 't3', name: 'Review', color: '#f59e0b' },
+];
+
 const DEFAULT_ACTIVITIES = [
-  { id: 'a1', name: 'Client Work', icon: '💼', color: '#6366f1', billable: true,  deepWork: true  },
-  { id: 'a2', name: 'Deep Work',   icon: '🧠', color: '#8b5cf6', billable: false, deepWork: true  },
-  { id: 'a3', name: 'Meeting',     icon: '📞', color: '#f59e0b', billable: true,  deepWork: false },
-  { id: 'a4', name: 'Admin',       icon: '📧', color: '#64748b', billable: false, deepWork: false },
-  { id: 'a5', name: 'Learning',    icon: '📚', color: '#10b981', billable: false, deepWork: true  },
-  { id: 'a6', name: 'Break',       icon: '☕', color: '#06b6d4', billable: false, deepWork: false },
-  { id: 'a7', name: 'Exercise',    icon: '🏃', color: '#f43f5e', billable: false, deepWork: false },
-  { id: 'a8', name: 'Planning',    icon: '📋', color: '#0ea5e9', billable: true,  deepWork: false },
+  { id: 'a1', name: 'Client Work', icon: '💼', color: '#6366f1', billable: true,  deepWork: true,  tags: [], useCount: 0 },
+  { id: 'a2', name: 'Deep Work',   icon: '🧠', color: '#8b5cf6', billable: false, deepWork: true,  tags: [], useCount: 0 },
+  { id: 'a3', name: 'Meeting',     icon: '📞', color: '#f59e0b', billable: true,  deepWork: false, tags: [], useCount: 0 },
+  { id: 'a4', name: 'Admin',       icon: '📧', color: '#64748b', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a5', name: 'Learning',    icon: '📚', color: '#10b981', billable: false, deepWork: true,  tags: [], useCount: 0 },
+  { id: 'a6', name: 'Break',       icon: '☕', color: '#06b6d4', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a7', name: 'Exercise',    icon: '🏃', color: '#f43f5e', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a8', name: 'Planning',    icon: '📋', color: '#0ea5e9', billable: true,  deepWork: false, tags: [], useCount: 0 },
 ];
 
 const DEFAULT_SETTINGS = {
-  dailyBillableGoal:  6,
-  dailyDeepWorkGoal:  4,
-  breakReminderMins:  90,
+  dailyBillableGoal: 6,
+  dailyDeepWorkGoal: 4,
+  breakReminderMins: 90,
+  smartSort:         true,
 };
 
 // ---- STATE ----
 
 const state = {
-  activities:       [],
-  entries:          [],
-  notes:            {},
-  settings:         { ...DEFAULT_SETTINGS },
-  activeEntry:      null,
-  currentTab:       'track',
-  logDate:          todayStr(),
-  timerInterval:    null,
-  todayChart:       null,
-  weekChart:        null,
-  breakShown:       false,
-  tempRatings:      {},
+  activities:    [],
+  entries:       [],
+  notes:         {},
+  tags:          [],
+  settings:      { ...DEFAULT_SETTINGS },
+  activeEntry:   null,
+  pendingEntry:  null,
+  currentTab:    'track',
+  logDate:       todayStr(),
+  timerInterval: null,
+  todayChart:    null,
+  weekChart:     null,
+  breakShown:    false,
+  tempRatings:   {},
 };
 
 // ---- DATE UTILS ----
@@ -77,14 +87,12 @@ function fmtHours(ms) {
 }
 
 function fmtElapsed(ms) {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const s   = Math.floor(ms / 1000);
+  const h   = Math.floor(s / 3600);
+  const m   = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const pad = n => String(n).padStart(2, '0');
-  return h > 0
-    ? `${pad(h)}:${pad(m)}:${pad(sec)}`
-    : `${pad(m)}:${pad(sec)}`;
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 }
 
 function fmtDate(dateStr) {
@@ -99,9 +107,9 @@ function fmtDate(dateStr) {
 }
 
 function weekStartStr(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
+  const d   = new Date(dateStr + 'T00:00:00');
   const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().split('T')[0];
 }
@@ -127,6 +135,7 @@ function save() {
   localStorage.setItem(KEYS.ENTRIES,    JSON.stringify(state.entries));
   localStorage.setItem(KEYS.NOTES,      JSON.stringify(state.notes));
   localStorage.setItem(KEYS.SETTINGS,   JSON.stringify(state.settings));
+  localStorage.setItem(KEYS.TAGS,       JSON.stringify(state.tags));
   if (state.activeEntry) {
     localStorage.setItem(KEYS.ACTIVE, JSON.stringify(state.activeEntry));
   } else {
@@ -136,7 +145,9 @@ function save() {
 
 function load() {
   const acts = localStorage.getItem(KEYS.ACTIVITIES);
-  state.activities = acts ? JSON.parse(acts) : DEFAULT_ACTIVITIES.map(a => ({ ...a }));
+  state.activities = acts
+    ? JSON.parse(acts).map(a => ({ tags: [], useCount: 0, ...a }))
+    : DEFAULT_ACTIVITIES.map(a => ({ ...a }));
 
   const entries = localStorage.getItem(KEYS.ENTRIES);
   state.entries = entries ? JSON.parse(entries) : [];
@@ -149,11 +160,14 @@ function load() {
     ? { ...DEFAULT_SETTINGS, ...JSON.parse(settings) }
     : { ...DEFAULT_SETTINGS };
 
+  const tags = localStorage.getItem(KEYS.TAGS);
+  state.tags = tags ? JSON.parse(tags) : DEFAULT_TAGS.map(t => ({ ...t }));
+
   const active = localStorage.getItem(KEYS.ACTIVE);
   state.activeEntry = active ? JSON.parse(active) : null;
 }
 
-// ---- ACTIVITY LOOKUP ----
+// ---- ACTIVITY HELPERS ----
 
 function getActivity(id) {
   return state.activities.find(a => a.id === id);
@@ -163,21 +177,51 @@ function entriesForDate(date) {
   return state.entries.filter(e => e.date === date);
 }
 
+function sortedActivities() {
+  if (!state.settings.smartSort) return state.activities;
+  return [...state.activities].sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
+}
+
+function renderActivityTags(act) {
+  if (!act?.tags?.length) return '';
+  return act.tags.map(tagId => {
+    const tag = state.tags.find(t => t.id === tagId);
+    if (!tag) return '';
+    return `<span class="tag-pill" style="background:${tag.color}22;color:${tag.color};border-color:${tag.color}55">${tag.name}</span>`;
+  }).join('');
+}
+
 // ---- TIMER ----
 
 function startActivity(actId) {
-  if (state.activeEntry) commitEntry();
+  // Commit any pending entry (note skipped, switching activities)
+  if (state.pendingEntry) {
+    state.entries.push(state.pendingEntry);
+    state.pendingEntry = null;
+    closeModal();
+  }
+
+  // Stop current active entry silently (switching activities)
+  if (state.activeEntry) {
+    state.entries.push({ ...state.activeEntry, endTime: nowISO() });
+    state.activeEntry = null;
+  }
 
   state.activeEntry = {
-    id: uid(),
+    id:         uid(),
     activityId: actId,
-    startTime: nowISO(),
-    endTime: null,
-    date: todayStr(),
+    startTime:  nowISO(),
+    endTime:    null,
+    date:       todayStr(),
+    note:       '',
   };
   state.breakShown = false;
-  save();
 
+  // Increment use count
+  const act = state.activities.find(a => a.id === actId);
+  if (act) act.useCount = (act.useCount || 0) + 1;
+
+  save();
   startTimerTick();
   renderTrack();
   updateHeaderDot();
@@ -185,27 +229,55 @@ function startActivity(actId) {
 
 function stopTimer() {
   if (!state.activeEntry) return;
-  commitEntry();
-  save();
+
+  const endedEntry    = { ...state.activeEntry, endTime: nowISO() };
+  state.activeEntry   = null;
+  state.pendingEntry  = endedEntry;
+
   stopTimerTick();
+  save();
   renderTrack();
   updateHeaderDot();
 
-  // Prompt end-of-day check-in after 4pm
-  if (new Date().getHours() >= 16 && !state.notes[todayStr()]) {
-    setTimeout(showWellbeingModal, 600);
+  showNoteModal(endedEntry);
+}
+
+function showNoteModal(entry) {
+  openModal(`
+    <div class="note-modal">
+      <h3>Add a Note</h3>
+      <p class="modal-subtitle">Optional — add context to this time entry</p>
+      <div class="input-group">
+        <textarea id="entry-note" rows="3" placeholder="What were you working on? Any details…">${entry.note || ''}</textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="commitWithNote(false)">Skip</button>
+        <button class="btn-primary" onclick="commitWithNote(true)">Save Note</button>
+      </div>
+    </div>
+  `);
+}
+
+function commitWithNote(saveNote) {
+  const entry = state.pendingEntry;
+  if (!entry) { closeModal(); return; }
+
+  if (saveNote) {
+    entry.note = document.getElementById('entry-note')?.value?.trim() || '';
   }
 
-  // Refresh active tab
+  state.entries.push(entry);
+  state.pendingEntry = null;
+  save();
+  closeModal();
+
   if (state.currentTab === 'log')   renderLog(state.logDate);
   if (state.currentTab === 'today') renderToday();
   if (state.currentTab === 'week')  renderWeek();
-}
 
-function commitEntry() {
-  if (!state.activeEntry) return;
-  state.entries.push({ ...state.activeEntry, endTime: nowISO() });
-  state.activeEntry = null;
+  if (new Date().getHours() >= 16 && !state.notes[todayStr()]) {
+    setTimeout(showWellbeingModal, 600);
+  }
 }
 
 function startTimerTick() {
@@ -221,21 +293,14 @@ function stopTimerTick() {
 }
 
 function onTick() {
-  // Update elapsed display
   const el = document.getElementById('timer-elapsed');
   if (el && state.activeEntry) {
     el.textContent = fmtElapsed(Date.now() - new Date(state.activeEntry.startTime));
   }
-
-  // Clock in header
   const timeEl = document.getElementById('current-time');
   if (timeEl) {
-    timeEl.textContent = new Date().toLocaleTimeString([], {
-      hour: '2-digit', minute: '2-digit',
-    });
+    timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
-
-  // Break reminder
   checkBreak();
 }
 
@@ -245,7 +310,6 @@ function checkBreak() {
   if (!state.activeEntry || state.breakShown) return;
   const act = getActivity(state.activeEntry.activityId);
   if (!act || !act.deepWork) return;
-
   const ms = Date.now() - new Date(state.activeEntry.startTime);
   if (ms >= state.settings.breakReminderMins * 60000) {
     state.breakShown = true;
@@ -257,7 +321,7 @@ function renderBreakAlert() {
   const el = document.getElementById('break-alert');
   if (!el) return;
   const breakAct = state.activities.find(a => a.name.toLowerCase().includes('break'));
-  const breakId = breakAct ? breakAct.id : state.activities[0].id;
+  const breakId  = breakAct ? breakAct.id : state.activities[0].id;
   el.innerHTML = `
     <div class="break-alert-content">
       <span class="break-icon">⚡</span>
@@ -283,10 +347,8 @@ function updateHeaderDot() {
 
 function switchTab(tab) {
   state.currentTab = tab;
-
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-
   document.getElementById(`tab-${tab}`)?.classList.add('active');
   document.querySelector(`.nav-btn[data-tab="${tab}"]`)?.classList.add('active');
 
@@ -308,13 +370,11 @@ function renderTrack() {
   const grid    = document.getElementById('activity-grid');
   const breakEl = document.getElementById('break-alert');
 
-  if (!state.activeEntry) {
-    if (breakEl) breakEl.classList.add('hidden');
-  }
+  if (!state.activeEntry && breakEl) breakEl.classList.add('hidden');
 
   if (section) {
     if (state.activeEntry) {
-      const act = getActivity(state.activeEntry.activityId);
+      const act     = getActivity(state.activeEntry.activityId);
       const elapsed = Date.now() - new Date(state.activeEntry.startTime);
       section.innerHTML = `
         <div class="active-timer" style="--activity-color: ${act?.color || '#6366f1'}">
@@ -327,6 +387,7 @@ function renderTrack() {
             <div class="active-tags">
               ${act?.billable ? '<span class="tag tag-billable">Billable</span>' : ''}
               ${act?.deepWork ? '<span class="tag tag-deep">Deep Work</span>' : ''}
+              ${renderActivityTags(act)}
             </div>
           </div>
           <div class="active-right">
@@ -340,26 +401,173 @@ function renderTrack() {
         <div class="idle-prompt">
           <div class="idle-icon">⏱</div>
           <div class="idle-text">Tap an activity to start tracking</div>
+          <div class="idle-hint">Hold &amp; drag to reorder</div>
         </div>
       `;
     }
   }
 
   if (grid) {
-    grid.innerHTML = state.activities.map(a => `
+    const acts = sortedActivities();
+    grid.innerHTML = acts.map(a => `
       <button
         class="activity-btn ${state.activeEntry?.activityId === a.id ? 'active' : ''}"
         style="--activity-color: ${a.color}"
+        data-act-id="${a.id}"
         onclick="startActivity('${a.id}')">
         <span class="activity-icon">${a.icon}</span>
         <span class="activity-name">${a.name}</span>
         <div class="activity-meta">
           ${a.billable ? '<span class="dot dot-billable">$</span>' : ''}
           ${a.deepWork ? '<span class="dot dot-deep">🎯</span>' : ''}
+          ${renderActivityTags(a)}
         </div>
       </button>
     `).join('');
+
+    setupDrag(grid);
   }
+}
+
+// ============================================================
+// DRAG & DROP (touch-based long-press)
+// ============================================================
+
+const drag = {
+  active:         false,
+  actId:          null,
+  overActId:      null,
+  ghost:          null,
+  originEl:       null,
+  longPressTimer: null,
+  startX:         0,
+  startY:         0,
+  offsetX:        0,
+  offsetY:        0,
+};
+
+function setupDrag(grid) {
+  grid.addEventListener('touchstart',  dragTouchStart,  { passive: false });
+  grid.addEventListener('touchmove',   dragTouchMove,   { passive: false });
+  grid.addEventListener('touchend',    dragTouchEnd,    { passive: false });
+  grid.addEventListener('touchcancel', dragCancel,      { passive: false });
+}
+
+function dragTouchStart(e) {
+  const btn = e.target.closest('[data-act-id]');
+  if (!btn) return;
+
+  drag.startX = e.touches[0].clientX;
+  drag.startY = e.touches[0].clientY;
+  drag.actId  = btn.dataset.actId;
+
+  drag.longPressTimer = setTimeout(() => {
+    drag.active   = true;
+    drag.originEl = btn;
+
+    const rect   = btn.getBoundingClientRect();
+    drag.offsetX = drag.startX - rect.left;
+    drag.offsetY = drag.startY - rect.top;
+
+    const ghost = btn.cloneNode(true);
+    ghost.id    = 'drag-ghost';
+    Object.assign(ghost.style, {
+      position:      'fixed',
+      width:         rect.width + 'px',
+      height:        rect.height + 'px',
+      top:           rect.top + 'px',
+      left:          rect.left + 'px',
+      opacity:       '0.88',
+      pointerEvents: 'none',
+      zIndex:        '500',
+      transform:     'scale(1.06)',
+      boxShadow:     '0 8px 30px rgba(0,0,0,0.5)',
+      transition:    'none',
+    });
+    document.body.appendChild(ghost);
+    drag.ghost = ghost;
+
+    btn.style.opacity = '0.3';
+    navigator.vibrate?.(40);
+  }, 420);
+}
+
+function dragTouchMove(e) {
+  const touch = e.touches[0];
+
+  if (!drag.active) {
+    if (drag.longPressTimer) {
+      const dx = touch.clientX - drag.startX;
+      const dy = touch.clientY - drag.startY;
+      if (Math.sqrt(dx * dx + dy * dy) > 8) {
+        clearTimeout(drag.longPressTimer);
+        drag.longPressTimer = null;
+      }
+    }
+    return;
+  }
+
+  e.preventDefault();
+
+  drag.ghost.style.left = (touch.clientX - drag.offsetX) + 'px';
+  drag.ghost.style.top  = (touch.clientY - drag.offsetY) + 'px';
+
+  drag.ghost.style.display = 'none';
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  drag.ghost.style.display = '';
+
+  const overBtn = el?.closest('[data-act-id]');
+  document.querySelectorAll('[data-act-id].drag-over').forEach(b => b.classList.remove('drag-over'));
+
+  if (overBtn && overBtn.dataset.actId !== drag.actId) {
+    overBtn.classList.add('drag-over');
+    drag.overActId = overBtn.dataset.actId;
+  } else {
+    drag.overActId = null;
+  }
+}
+
+function dragTouchEnd() {
+  clearTimeout(drag.longPressTimer);
+
+  if (drag.active && drag.overActId && drag.actId !== drag.overActId) {
+    // Lock in displayed order if smart sort was on, then turn it off
+    if (state.settings.smartSort) {
+      state.activities       = sortedActivities();
+      state.settings.smartSort = false;
+      showToast('Auto-sort off — order saved');
+    }
+
+    const fromIdx = state.activities.findIndex(a => a.id === drag.actId);
+    const toIdx   = state.activities.findIndex(a => a.id === drag.overActId);
+
+    if (fromIdx !== -1 && toIdx !== -1) {
+      const [moved] = state.activities.splice(fromIdx, 1);
+      state.activities.splice(toIdx, 0, moved);
+      save();
+    }
+
+    renderTrack();
+  }
+
+  dragCleanup();
+}
+
+function dragCancel() {
+  clearTimeout(drag.longPressTimer);
+  dragCleanup();
+}
+
+function dragCleanup() {
+  if (drag.ghost)    drag.ghost.remove();
+  if (drag.originEl) drag.originEl.style.opacity = '';
+  document.querySelectorAll('[data-act-id].drag-over').forEach(b => b.classList.remove('drag-over'));
+  drag.active         = false;
+  drag.actId          = null;
+  drag.overActId      = null;
+  drag.ghost          = null;
+  drag.originEl       = null;
+  drag.longPressTimer = null;
 }
 
 // ============================================================
@@ -376,17 +584,13 @@ function renderLog(date) {
   const nextBtn = document.getElementById('log-next-btn');
 
   if (label)   label.textContent = fmtDate(date);
-  if (nextBtn) nextBtn.disabled = date >= today;
+  if (nextBtn) nextBtn.disabled  = date >= today;
 
-  // Saved entries for this date, sorted
   const saved = entriesForDate(date)
     .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-  // Include live active entry if viewing today
   const display = [...saved];
-  if (date === today && state.activeEntry) {
-    display.push({ ...state.activeEntry });
-  }
+  if (date === today && state.activeEntry) display.push({ ...state.activeEntry });
 
   if (!display.length) {
     if (list) list.innerHTML = `
@@ -401,9 +605,10 @@ function renderLog(date) {
 
   if (list) {
     list.innerHTML = display.map(entry => {
-      const act = getActivity(entry.activityId);
-      const ms  = durationMs(entry);
+      const act  = getActivity(entry.activityId);
+      const ms   = durationMs(entry);
       const live = !entry.endTime;
+      const tagsHtml = renderActivityTags(act);
       return `
         <div class="log-entry" style="border-left-color: ${act?.color || '#64748b'}">
           <div class="log-entry-icon">${act?.icon || '•'}</div>
@@ -412,23 +617,25 @@ function renderLog(date) {
             <div class="log-entry-time">
               ${formatTimeStr(entry.startTime)} – ${live ? 'now' : formatTimeStr(entry.endTime)}
             </div>
+            ${tagsHtml ? `<div class="log-entry-tags">${tagsHtml}</div>` : ''}
+            ${entry.note ? `<div class="log-entry-note">📝 ${entry.note}</div>` : ''}
           </div>
           <div class="log-entry-right">
             <div class="log-entry-duration ${live ? 'pulsing' : ''}">${fmtDuration(ms)}</div>
             ${act?.billable ? '<div class="log-tag">$</div>' : ''}
-            ${!live ? `<button class="log-delete" onclick="deleteEntry('${entry.id}')">&#215;</button>` : ''}
+            ${!live ? `
+              <button class="log-note-btn" onclick="editEntryNote('${entry.id}')" title="${entry.note ? 'Edit note' : 'Add note'}">📝</button>
+              <button class="log-delete" onclick="deleteEntry('${entry.id}')">&#215;</button>
+            ` : ''}
           </div>
         </div>
       `;
     }).join('');
   }
 
-  // Summary bar
   const totalMs    = saved.reduce((s, e) => s + durationMs(e), 0);
-  const billableMs = saved.filter(e => getActivity(e.activityId)?.billable)
-                          .reduce((s, e) => s + durationMs(e), 0);
-  const deepMs     = saved.filter(e => getActivity(e.activityId)?.deepWork)
-                          .reduce((s, e) => s + durationMs(e), 0);
+  const billableMs = saved.filter(e => getActivity(e.activityId)?.billable).reduce((s, e) => s + durationMs(e), 0);
+  const deepMs     = saved.filter(e => getActivity(e.activityId)?.deepWork).reduce((s, e) => s + durationMs(e), 0);
 
   if (summary) {
     summary.innerHTML = `
@@ -450,6 +657,35 @@ function renderLog(date) {
   }
 }
 
+function editEntryNote(entryId) {
+  const entry = state.entries.find(e => e.id === entryId);
+  if (!entry) return;
+  openModal(`
+    <div class="note-modal">
+      <h3>${entry.note ? 'Edit Note' : 'Add Note'}</h3>
+      <p class="modal-subtitle">Add context to this time entry</p>
+      <div class="input-group">
+        <textarea id="edit-note-text" rows="4" placeholder="What were you working on?">${entry.note || ''}</textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveEditedNote('${entryId}')">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveEditedNote(entryId) {
+  const entry = state.entries.find(e => e.id === entryId);
+  if (entry) {
+    entry.note = document.getElementById('edit-note-text')?.value?.trim() || '';
+    save();
+  }
+  closeModal();
+  renderLog(state.logDate);
+  showToast('Note saved');
+}
+
 function changeLogDate(delta) {
   const d = new Date(state.logDate + 'T00:00:00');
   d.setDate(d.getDate() + delta);
@@ -469,31 +705,24 @@ function deleteEntry(id) {
 // ============================================================
 
 function renderToday() {
-  const today   = todayStr();
-  const saved   = entriesForDate(today);
-  const note    = state.notes[today];
+  const today = todayStr();
+  const saved = entriesForDate(today);
+  const note  = state.notes[today];
 
-  // All entries including active
-  const all = state.activeEntry
-    ? [...saved, { ...state.activeEntry }]
-    : saved;
+  const all = state.activeEntry ? [...saved, { ...state.activeEntry }] : saved;
 
   const totalMs    = all.reduce((s, e) => s + durationMs(e), 0);
-  const billableMs = all.filter(e => getActivity(e.activityId)?.billable)
-                        .reduce((s, e) => s + durationMs(e), 0);
-  const deepMs     = all.filter(e => getActivity(e.activityId)?.deepWork)
-                        .reduce((s, e) => s + durationMs(e), 0);
+  const billableMs = all.filter(e => getActivity(e.activityId)?.billable).reduce((s, e) => s + durationMs(e), 0);
+  const deepMs     = all.filter(e => getActivity(e.activityId)?.deepWork).reduce((s, e) => s + durationMs(e), 0);
 
-  const billGoalMs  = state.settings.dailyBillableGoal  * 3600000;
-  const deepGoalMs  = state.settings.dailyDeepWorkGoal  * 3600000;
-  const billPct     = Math.min(100, Math.round((billableMs / billGoalMs) * 100));
-  const deepPct     = Math.min(100, Math.round((deepMs     / deepGoalMs) * 100));
-  const utilPct     = totalMs > 0 ? Math.round((billableMs / totalMs) * 100) : 0;
+  const billGoalMs = state.settings.dailyBillableGoal * 3600000;
+  const deepGoalMs = state.settings.dailyDeepWorkGoal * 3600000;
+  const billPct    = Math.min(100, Math.round((billableMs / billGoalMs) * 100));
+  const deepPct    = Math.min(100, Math.round((deepMs     / deepGoalMs) * 100));
+  const utilPct    = totalMs > 0 ? Math.round((billableMs / totalMs) * 100) : 0;
 
-  // Chart
   renderTodayChart(all);
 
-  // Metrics
   const metricsEl = document.getElementById('today-metrics');
   if (metricsEl) {
     metricsEl.innerHTML = `
@@ -504,17 +733,13 @@ function renderToday() {
       <div class="metric-card">
         <div class="metric-value" style="color:#10b981">${fmtHours(billableMs)}</div>
         <div class="metric-label">Billable</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill" style="width:${billPct}%;background:#10b981"></div>
-        </div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:${billPct}%;background:#10b981"></div></div>
         <div class="metric-goal">${billPct}% of ${state.settings.dailyBillableGoal}h goal</div>
       </div>
       <div class="metric-card">
         <div class="metric-value" style="color:#8b5cf6">${fmtHours(deepMs)}</div>
         <div class="metric-label">Deep Work</div>
-        <div class="metric-bar">
-          <div class="metric-bar-fill" style="width:${deepPct}%;background:#8b5cf6"></div>
-        </div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width:${deepPct}%;background:#8b5cf6"></div></div>
         <div class="metric-goal">${deepPct}% of ${state.settings.dailyDeepWorkGoal}h goal</div>
       </div>
       <div class="metric-card">
@@ -524,7 +749,6 @@ function renderToday() {
     `;
   }
 
-  // Wellbeing
   const wbEl = document.getElementById('today-wellbeing');
   if (wbEl) {
     if (note) {
@@ -533,21 +757,17 @@ function renderToday() {
           <div class="wellbeing-row">
             <span>Energy</span>
             <div class="wellbeing-dots">
-              ${[1,2,3,4,5].map(i =>
-                `<span class="wdot ${i <= (note.energy||0) ? 'active' : ''}"></span>`
-              ).join('')}
+              ${[1,2,3,4,5].map(i => `<span class="wdot ${i <= (note.energy||0) ? 'active' : ''}"></span>`).join('')}
             </div>
           </div>
           <div class="wellbeing-row">
             <span>Wellbeing</span>
             <div class="wellbeing-dots">
-              ${[1,2,3,4,5].map(i =>
-                `<span class="wdot ${i <= (note.wellbeing||0) ? 'active' : ''}"></span>`
-              ).join('')}
+              ${[1,2,3,4,5].map(i => `<span class="wdot ${i <= (note.wellbeing||0) ? 'active' : ''}"></span>`).join('')}
             </div>
           </div>
-          ${note.win    ? `<div class="wellbeing-win"><strong>Win: </strong>${note.win}</div>` : ''}
-          ${note.focus  ? `<div class="wellbeing-focus"><strong>Tomorrow: </strong>${note.focus}</div>` : ''}
+          ${note.win   ? `<div class="wellbeing-win"><strong>Win: </strong>${note.win}</div>` : ''}
+          ${note.focus ? `<div class="wellbeing-focus"><strong>Tomorrow: </strong>${note.focus}</div>` : ''}
           <button class="btn-text" onclick="showWellbeingModal()">Edit check-in</button>
         </div>
       `;
@@ -567,11 +787,10 @@ function renderToday() {
 }
 
 function renderTodayChart(entries) {
-  const canvas   = document.getElementById('today-chart');
-  const emptyEl  = document.getElementById('today-chart-empty');
+  const canvas  = document.getElementById('today-chart');
+  const emptyEl = document.getElementById('today-chart-empty');
   if (!canvas) return;
 
-  // Aggregate by activity
   const byAct = {};
   entries.forEach(e => {
     const act = getActivity(e.activityId);
@@ -581,7 +800,6 @@ function renderTodayChart(entries) {
   });
 
   const data = Object.values(byAct).filter(d => d.ms > 0);
-
   if (state.todayChart) { state.todayChart.destroy(); state.todayChart = null; }
 
   if (!data.length) {
@@ -596,7 +814,7 @@ function renderTodayChart(entries) {
   state.todayChart = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: data.map(d => d.name),
+      labels:   data.map(d => d.name),
       datasets: [{
         data:            data.map(d => Math.round(d.ms / 60000)),
         backgroundColor: data.map(d => d.color),
@@ -608,16 +826,12 @@ function renderTodayChart(entries) {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: '#94a3b8', padding: 10, font: { size: 11 } },
-        },
+        legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 10, font: { size: 11 } } },
         tooltip: {
           callbacks: {
             label: ctx => {
               const mins = ctx.parsed;
-              const h = Math.floor(mins / 60);
-              const m = mins % 60;
+              const h = Math.floor(mins / 60), m = mins % 60;
               return ` ${h > 0 ? h + 'h ' : ''}${m}m`;
             },
           },
@@ -633,30 +847,26 @@ function renderTodayChart(entries) {
 // ============================================================
 
 function renderWeek() {
-  const start     = weekStartStr(todayStr());
-  const dates     = getWeekDates(start);
-  const today     = todayStr();
-
+  const start       = weekStartStr(todayStr());
+  const dates       = getWeekDates(start);
+  const today       = todayStr();
   const weekEntries = state.entries.filter(e => dates.includes(e.date));
 
   const totalMs    = weekEntries.reduce((s, e) => s + durationMs(e), 0);
-  const billableMs = weekEntries.filter(e => getActivity(e.activityId)?.billable)
-                                .reduce((s, e) => s + durationMs(e), 0);
-  const deepMs     = weekEntries.filter(e => getActivity(e.activityId)?.deepWork)
-                                .reduce((s, e) => s + durationMs(e), 0);
+  const billableMs = weekEntries.filter(e => getActivity(e.activityId)?.billable).reduce((s, e) => s + durationMs(e), 0);
+  const deepMs     = weekEntries.filter(e => getActivity(e.activityId)?.deepWork).reduce((s, e) => s + durationMs(e), 0);
 
-  const workDays   = dates.filter(d => d <= today).length || 1;
-  const utilPct    = totalMs > 0 ? Math.round((billableMs / totalMs) * 100) : 0;
-  const deepPct    = totalMs > 0 ? Math.round((deepMs     / totalMs) * 100) : 0;
+  const workDays = dates.filter(d => d <= today).length || 1;
+  const utilPct  = totalMs > 0 ? Math.round((billableMs / totalMs) * 100) : 0;
+  const deepPct  = totalMs > 0 ? Math.round((deepMs     / totalMs) * 100) : 0;
 
   renderWeekChart(dates, today);
 
-  // Metrics
   const metricsEl = document.getElementById('week-metrics');
   if (metricsEl) {
     const notes = dates.map(d => state.notes[d]).filter(Boolean);
-    const avgWB  = notes.length ? (notes.reduce((s, n) => s + (n.wellbeing || 0), 0) / notes.length).toFixed(1) : null;
-    const avgEn  = notes.length ? (notes.reduce((s, n) => s + (n.energy    || 0), 0) / notes.length).toFixed(1) : null;
+    const avgWB = notes.length ? (notes.reduce((s, n) => s + (n.wellbeing || 0), 0) / notes.length).toFixed(1) : null;
+    const avgEn = notes.length ? (notes.reduce((s, n) => s + (n.energy    || 0), 0) / notes.length).toFixed(1) : null;
 
     metricsEl.innerHTML = `
       <div class="metric-card">
@@ -690,7 +900,6 @@ function renderWeek() {
     `;
   }
 
-  // Wellbeing trend
   const wbEl = document.getElementById('week-wellbeing');
   if (wbEl) {
     const hasNotes = dates.some(d => state.notes[d]);
@@ -699,8 +908,8 @@ function renderWeek() {
         <div class="wins-title">Daily Check-ins</div>
         <div class="week-checkins">
           ${dates.map(d => {
-            const n   = state.notes[d];
-            const day = new Date(d + 'T00:00:00').toLocaleDateString([], { weekday: 'short' });
+            const n      = state.notes[d];
+            const day    = new Date(d + 'T00:00:00').toLocaleDateString([], { weekday: 'short' });
             const future = d > today;
             return `
               <div class="day-checkin ${future ? 'future' : ''}">
@@ -726,7 +935,6 @@ function renderWeek() {
     }
   }
 
-  // Insights
   renderInsights(dates, totalMs, billableMs, deepMs);
 }
 
@@ -737,10 +945,9 @@ function renderInsights(dates, totalMs, billableMs, deepMs) {
   const insights = [];
   const today    = todayStr();
   const notes    = dates.map(d => state.notes[d]).filter(Boolean);
-  const billGoal = state.settings.dailyBillableGoal * 3600000 * 5; // 5 work days
+  const billGoal = state.settings.dailyBillableGoal * 3600000 * 5;
   const deepGoal = state.settings.dailyDeepWorkGoal * 3600000 * 5;
 
-  // Billable goal
   const billPct = billGoal > 0 ? (billableMs / billGoal) * 100 : 0;
   if (billPct >= 100) {
     insights.push({ type: 'success', text: `🎯 You've hit your billable hours goal this week!` });
@@ -748,7 +955,6 @@ function renderInsights(dates, totalMs, billableMs, deepMs) {
     insights.push({ type: 'warning', text: `📊 Billable hours at ${Math.round(billPct)}% of goal — you may need to push this week.` });
   }
 
-  // Deep work
   const deepPct = deepGoal > 0 ? (deepMs / deepGoal) * 100 : 0;
   if (deepPct >= 80) {
     insights.push({ type: 'success', text: `🧠 Strong deep work focus this week (${Math.round(deepPct)}% of goal).` });
@@ -756,30 +962,23 @@ function renderInsights(dates, totalMs, billableMs, deepMs) {
     insights.push({ type: 'warning', text: `🧠 Deep work is low (${Math.round(deepPct)}% of goal). Try blocking morning hours.` });
   }
 
-  // Wellbeing
   if (notes.length >= 3) {
     const avgEn = notes.reduce((s, n) => s + (n.energy || 0), 0) / notes.length;
     const avgWB = notes.reduce((s, n) => s + (n.wellbeing || 0), 0) / notes.length;
-    if (avgEn < 2.5) {
-      insights.push({ type: 'warning', text: `⚡ Your energy has been low this week. Consider rest, movement, or schedule changes.` });
-    } else if (avgEn >= 4) {
-      insights.push({ type: 'success', text: `✨ High energy all week — your routine is working well.` });
-    }
-    if (avgWB < 2.5) {
-      insights.push({ type: 'warning', text: `💙 Wellbeing dipped this week. Protect time for rest and things you enjoy.` });
-    }
+    if (avgEn < 2.5)      insights.push({ type: 'warning', text: `⚡ Your energy has been low this week. Consider rest, movement, or schedule changes.` });
+    else if (avgEn >= 4)  insights.push({ type: 'success', text: `✨ High energy all week — your routine is working well.` });
+    if (avgWB < 2.5)      insights.push({ type: 'warning', text: `💙 Wellbeing dipped this week. Protect time for rest and things you enjoy.` });
   }
 
-  // Consistency
   const daysTracked = dates.filter(d => d <= today && entriesForDate(d).length > 0).length;
   const daysElapsed = dates.filter(d => d <= today).length;
   if (daysElapsed >= 3 && daysTracked < daysElapsed - 1) {
     insights.push({ type: 'warning', text: `📋 Tracking missed on ${daysElapsed - daysTracked} days this week. Consistent data improves insights.` });
   }
 
-  el.innerHTML = insights.map(ins => `
-    <div class="insight-card insight-${ins.type}">${ins.text}</div>
-  `).join('') || '';
+  el.innerHTML = insights.map(ins =>
+    `<div class="insight-card insight-${ins.type}">${ins.text}</div>`
+  ).join('') || '';
 }
 
 function renderWeekChart(dates, today) {
@@ -792,17 +991,12 @@ function renderWeekChart(dates, today) {
   });
 
   const billableData = dates.map(d =>
-    +(entriesForDate(d)
-        .filter(e => getActivity(e.activityId)?.billable)
-        .reduce((s, e) => s + durationMs(e), 0) / 3600000
-    ).toFixed(1)
+    +(entriesForDate(d).filter(e => getActivity(e.activityId)?.billable)
+      .reduce((s, e) => s + durationMs(e), 0) / 3600000).toFixed(1)
   );
-
   const nonBillData = dates.map(d =>
-    +(entriesForDate(d)
-        .filter(e => !getActivity(e.activityId)?.billable)
-        .reduce((s, e) => s + durationMs(e), 0) / 3600000
-    ).toFixed(1)
+    +(entriesForDate(d).filter(e => !getActivity(e.activityId)?.billable)
+      .reduce((s, e) => s + durationMs(e), 0) / 3600000).toFixed(1)
   );
 
   if (state.weekChart) { state.weekChart.destroy(); state.weekChart = null; }
@@ -812,40 +1006,20 @@ function renderWeekChart(dates, today) {
     data: {
       labels,
       datasets: [
-        {
-          label: 'Billable',
-          data: billableData,
-          backgroundColor: '#10b981',
-          borderRadius: 4,
-        },
-        {
-          label: 'Non-Billable',
-          data: nonBillData,
-          backgroundColor: '#334155',
-          borderRadius: 4,
-        },
+        { label: 'Billable',     data: billableData, backgroundColor: '#10b981', borderRadius: 4 },
+        { label: 'Non-Billable', data: nonBillData,  backgroundColor: '#334155', borderRadius: 4 },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
       scales: {
-        x: {
-          stacked: true,
-          ticks: { color: '#94a3b8', font: { size: 11 } },
-          grid:  { color: 'rgba(71,85,105,0.3)' },
-        },
-        y: {
-          stacked: true,
-          ticks: { color: '#94a3b8', callback: v => v + 'h', font: { size: 11 } },
-          grid:  { color: 'rgba(71,85,105,0.3)' },
-        },
+        x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { color: 'rgba(71,85,105,0.3)' } },
+        y: { stacked: true, ticks: { color: '#94a3b8', callback: v => v + 'h', font: { size: 11 } }, grid: { color: 'rgba(71,85,105,0.3)' } },
       },
       plugins: {
         legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}h` },
-        },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}h` } },
       },
     },
   });
@@ -861,29 +1035,70 @@ function renderSettings() {
 
   el.innerHTML = `
     <div class="settings-section">
-      <h3>Activities</h3>
-      <div class="activities-list">
-        ${state.activities.map(a => `
-          <div class="activity-item">
-            <div class="activity-item-left">
-              <span class="activity-item-icon">${a.icon}</span>
-              <div>
-                <div class="activity-item-name">${a.name}</div>
-                <div class="activity-item-tags">
-                  ${a.billable  ? '<span class="tag tag-sm tag-billable">Billable</span>'  : ''}
-                  ${a.deepWork  ? '<span class="tag tag-sm tag-deep">Deep Work</span>'      : ''}
-                </div>
-              </div>
-            </div>
-            <div class="activity-item-right">
-              <div class="activity-color-dot" style="background:${a.color}"></div>
-              <button class="btn-icon" onclick="showActivityModal('${a.id}')">&#9998;</button>
-              <button class="btn-icon btn-danger" onclick="deleteActivity('${a.id}')">&#215;</button>
+      <h3>Tags</h3>
+      <div class="tags-list">
+        ${state.tags.map(t => `
+          <div class="tag-item">
+            <span class="tag-item-dot" style="background:${t.color}"></span>
+            <span class="tag-item-name">${t.name}</span>
+            <div class="tag-item-actions">
+              <button class="btn-icon" onclick="showTagModal('${t.id}')">&#9998;</button>
+              <button class="btn-icon btn-danger" onclick="deleteTag('${t.id}')">&#215;</button>
             </div>
           </div>
         `).join('')}
+        ${state.tags.length === 0 ? '<p class="no-items-hint">No tags yet. Create one below.</p>' : ''}
+      </div>
+      <button class="btn-outline btn-full" onclick="showTagModal(null)">+ New Tag</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Activities</h3>
+      <div class="activities-list">
+        ${state.activities.map(a => {
+          const actTagsHtml = (a.tags || []).map(tagId => {
+            const tag = state.tags.find(t => t.id === tagId);
+            return tag
+              ? `<span class="tag-pill" style="background:${tag.color}22;color:${tag.color};border-color:${tag.color}55">${tag.name}</span>`
+              : '';
+          }).join('');
+          return `
+            <div class="activity-item">
+              <div class="activity-item-left">
+                <span class="activity-item-icon">${a.icon}</span>
+                <div>
+                  <div class="activity-item-name">${a.name}</div>
+                  <div class="activity-item-tags">
+                    ${a.billable ? '<span class="tag tag-sm tag-billable">Billable</span>' : ''}
+                    ${a.deepWork ? '<span class="tag tag-sm tag-deep">Deep Work</span>'   : ''}
+                    ${actTagsHtml}
+                  </div>
+                </div>
+              </div>
+              <div class="activity-item-right">
+                <div class="activity-color-dot" style="background:${a.color}"></div>
+                <button class="btn-icon" onclick="showActivityModal('${a.id}')">&#9998;</button>
+                <button class="btn-icon btn-danger" onclick="deleteActivity('${a.id}')">&#215;</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
       <button class="btn-outline btn-full" onclick="showActivityModal(null)">+ Add Activity</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Smart Sort</h3>
+      <div class="toggle-row">
+        <div>
+          <div style="font-size:14px;color:var(--text)">Auto-sort by most used</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Activities you use most appear first</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="smart-sort-toggle" ${state.settings.smartSort ? 'checked' : ''} onchange="toggleSmartSort(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -922,10 +1137,17 @@ function renderSettings() {
   `;
 }
 
+function toggleSmartSort(value) {
+  state.settings.smartSort = value;
+  save();
+  if (state.currentTab === 'track') renderTrack();
+  showToast(value ? 'Smart sort on' : 'Smart sort off');
+}
+
 function saveSettings() {
-  const bill  = parseFloat(document.getElementById('goal-billable')?.value);
-  const deep  = parseFloat(document.getElementById('goal-deep')?.value);
-  const brk   = parseInt(document.getElementById('goal-break')?.value);
+  const bill = parseFloat(document.getElementById('goal-billable')?.value);
+  const deep = parseFloat(document.getElementById('goal-deep')?.value);
+  const brk  = parseInt(document.getElementById('goal-break')?.value);
   if (bill > 0) state.settings.dailyBillableGoal = bill;
   if (deep > 0) state.settings.dailyDeepWorkGoal = deep;
   if (brk  > 0) state.settings.breakReminderMins = brk;
@@ -933,13 +1155,74 @@ function saveSettings() {
   showToast('Goals saved');
 }
 
-// ---- ACTIVITY MODAL ----
+// ---- TAG MODAL ----
 
 const PALETTE = ['#6366f1','#8b5cf6','#f59e0b','#10b981','#06b6d4','#f43f5e','#f97316','#0ea5e9','#64748b','#ec4899'];
 
+function showTagModal(id) {
+  const tag          = id ? state.tags.find(t => t.id === id) : null;
+  const currentColor = tag?.color || PALETTE[0];
+
+  openModal(`
+    <div class="activity-modal">
+      <h3>${tag ? 'Edit Tag' : 'New Tag'}</h3>
+      <div class="input-group">
+        <label>Tag Name</label>
+        <input type="text" id="tag-name" value="${tag?.name || ''}" placeholder="e.g. Urgent">
+      </div>
+      <div class="input-group">
+        <label>Color</label>
+        <div class="color-picker">
+          ${PALETTE.map(c => `
+            <button class="color-swatch ${c === currentColor ? 'active' : ''}"
+                    style="background:${c}"
+                    data-color="${c}"
+                    onclick="selectColor('${c}')"></button>
+          `).join('')}
+        </div>
+        <input type="hidden" id="act-color" value="${currentColor}">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveTag('${id || ''}')">Save</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveTag(id) {
+  const name  = document.getElementById('tag-name')?.value?.trim();
+  const color = document.getElementById('act-color')?.value || PALETTE[0];
+  if (!name) { showToast('Please enter a tag name'); return; }
+
+  if (id) {
+    const idx = state.tags.findIndex(t => t.id === id);
+    if (idx !== -1) state.tags[idx] = { ...state.tags[idx], name, color };
+  } else {
+    state.tags.push({ id: uid(), name, color });
+  }
+
+  save();
+  closeModal();
+  renderSettings();
+  if (state.currentTab === 'track') renderTrack();
+  showToast(id ? 'Tag updated' : 'Tag created');
+}
+
+function deleteTag(id) {
+  state.tags = state.tags.filter(t => t.id !== id);
+  state.activities.forEach(a => { a.tags = (a.tags || []).filter(tid => tid !== id); });
+  save();
+  renderSettings();
+  showToast('Tag deleted');
+}
+
+// ---- ACTIVITY MODAL ----
+
 function showActivityModal(id) {
-  const a = id ? state.activities.find(x => x.id === id) : null;
+  const a            = id ? state.activities.find(x => x.id === id) : null;
   const currentColor = a?.color || PALETTE[0];
+  const actTags      = a?.tags || [];
 
   openModal(`
     <div class="activity-modal">
@@ -980,6 +1263,22 @@ function showActivityModal(id) {
           </label>
         </div>
       </div>
+      ${state.tags.length > 0 ? `
+      <div class="input-group">
+        <label>Tags</label>
+        <div class="tag-selector">
+          ${state.tags.map(tag => `
+            <button type="button"
+                    class="tag-chip ${actTags.includes(tag.id) ? 'selected' : ''}"
+                    data-tag-id="${tag.id}"
+                    style="--tag-color:${tag.color}"
+                    onclick="this.classList.toggle('selected')">
+              ${tag.name}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeModal()">Cancel</button>
         <button class="btn-primary" onclick="saveActivity('${id || ''}')">Save</button>
@@ -997,19 +1296,20 @@ function selectColor(color) {
 }
 
 function saveActivity(id) {
-  const icon     = document.getElementById('act-icon')?.value?.trim()   || '📌';
+  const icon     = document.getElementById('act-icon')?.value?.trim()  || '📌';
   const name     = document.getElementById('act-name')?.value?.trim();
-  const color    = document.getElementById('act-color')?.value           || PALETTE[0];
-  const billable = document.getElementById('act-billable')?.checked      || false;
-  const deepWork = document.getElementById('act-deep')?.checked          || false;
+  const color    = document.getElementById('act-color')?.value          || PALETTE[0];
+  const billable = document.getElementById('act-billable')?.checked     || false;
+  const deepWork = document.getElementById('act-deep')?.checked         || false;
+  const tags     = [...document.querySelectorAll('.tag-chip.selected')].map(c => c.dataset.tagId);
 
   if (!name) { showToast('Please enter a name'); return; }
 
   if (id) {
     const idx = state.activities.findIndex(a => a.id === id);
-    if (idx !== -1) state.activities[idx] = { ...state.activities[idx], icon, name, color, billable, deepWork };
+    if (idx !== -1) state.activities[idx] = { ...state.activities[idx], icon, name, color, billable, deepWork, tags };
   } else {
-    state.activities.push({ id: uid(), icon, name, color, billable, deepWork });
+    state.activities.push({ id: uid(), icon, name, color, billable, deepWork, tags, useCount: 0 });
   }
 
   save();
@@ -1079,7 +1379,7 @@ function showWellbeingModal() {
 function setRating(type, value) {
   state.tempRatings[type] = value;
   const containerId = type === 'energy' ? 'energy-stars' : 'wellbeing-stars';
-  const container = document.getElementById(containerId);
+  const container   = document.getElementById(containerId);
   if (container) {
     container.querySelectorAll('.star').forEach((star, i) => {
       star.classList.toggle('active', i < value);
@@ -1107,19 +1407,23 @@ function saveWellbeing() {
 // ---- DATA EXPORT ----
 
 function exportCSV() {
-  const headers = ['Date','Activity','Category','Start','End','Duration (min)','Billable','Deep Work'];
+  const headers = ['Date','Activity','Start','End','Duration (min)','Billable','Deep Work','Tags','Note'];
   const rows = state.entries.map(e => {
-    const act = getActivity(e.activityId);
+    const act  = getActivity(e.activityId);
     const mins = Math.round(durationMs(e) / 60000);
+    const tags = (act?.tags || [])
+      .map(tid => state.tags.find(t => t.id === tid)?.name || '')
+      .filter(Boolean).join('; ');
     return [
       e.date,
       act?.name || 'Unknown',
-      act?.billable ? 'Billable' : 'Non-Billable',
       formatTimeStr(e.startTime),
       e.endTime ? formatTimeStr(e.endTime) : '',
       mins,
       act?.billable ? 'Yes' : 'No',
       act?.deepWork ? 'Yes' : 'No',
+      `"${tags}"`,
+      `"${(e.note || '').replace(/"/g, '""')}"`,
     ].join(',');
   });
 
@@ -1209,23 +1513,18 @@ function showToast(msg) {
 function init() {
   load();
 
-  // Clock tick every minute
   const updateClock = () => {
     const el = document.getElementById('current-time');
-    if (el) el.textContent = new Date().toLocaleTimeString([], {
-      hour: '2-digit', minute: '2-digit',
-    });
+    if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
   updateClock();
   setInterval(updateClock, 30000);
 
-  // Resume active timer
   if (state.activeEntry) startTimerTick();
 
   updateHeaderDot();
   renderTrack();
 
-  // Service worker registration
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }

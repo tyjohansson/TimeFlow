@@ -1336,3 +1336,150 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* ============================================================
+   CUSTOM TAG PILLS
+   ============================================================ */
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   DRAG & DROP
+   ============================================================ */
+
+.idle-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+[data-act-id].drag-over {
+  border-color: white !important;
+  transform: scale(0.97);
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+/* ============================================================
+   TAGS MANAGEMENT (settings)
+   ============================================================ */
+
+.tags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tag-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+}
+
+.tag-item-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-item-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tag-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.no-items-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 6px 0;
+}
+
+/* ============================================================
+   TAG SELECTOR (activity modal)
+   ============================================================ */
+
+.tag-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tag-chip.selected {
+  background: color-mix(in srgb, var(--tag-color) 20%, transparent);
+  border-color: var(--tag-color);
+  color: var(--tag-color);
+}
+
+/* ============================================================
+   LOG ENTRY — TAGS & NOTES
+   ============================================================ */
+
+.log-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.log-entry-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.log-note-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.log-note-btn:active {
+  opacity: 1;
+}
+
+/* ============================================================
+   NOTE MODAL
+   ============================================================ */
+
+.note-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
