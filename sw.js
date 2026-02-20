@@ -1,6 +1,6 @@
 // TimeFlow Service Worker — offline-first caching
 
-const CACHE  = 'timeflow-v2';
+const CACHE  = 'timeflow-v3';
 const ASSETS = [
   '/TimeFlow/',
   '/TimeFlow/index.html',
@@ -32,7 +32,7 @@ self.addEventListener('fetch', e => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
-      }).catch(() => caches.match('/index.html'));
+      }).catch(() => caches.match('/TimeFlow/index.html'));
     })
   );
 });
