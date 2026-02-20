@@ -58,8 +58,12 @@ const state = {
 
 // ---- DATE UTILS ----
 
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr(new Date());
 }
 
 function nowISO() {
@@ -97,13 +101,13 @@ function fmtElapsed(ms) {
 
 function fmtDate(dateStr) {
   const today = todayStr();
-  if (dateStr === today) return 'Today';
+  const d = new Date(dateStr + 'T00:00:00');
+  const calStr = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  if (dateStr === today) return `Today · ${calStr}`;
   const yest = new Date();
   yest.setDate(yest.getDate() - 1);
-  if (dateStr === yest.toISOString().split('T')[0]) return 'Yesterday';
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString([], {
-    weekday: 'short', month: 'short', day: 'numeric',
-  });
+  if (dateStr === localDateStr(yest)) return `Yesterday · ${calStr}`;
+  return calStr;
 }
 
 function weekStartStr(dateStr) {
@@ -111,7 +115,7 @@ function weekStartStr(dateStr) {
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
 }
 
 function getWeekDates(startStr) {
@@ -119,7 +123,7 @@ function getWeekDates(startStr) {
   for (let i = 0; i < 7; i++) {
     const d = new Date(startStr + 'T00:00:00');
     d.setDate(d.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
+    dates.push(localDateStr(d));
   }
   return dates;
 }
@@ -702,6 +706,11 @@ function renderLog(date) {
   if (label)   label.textContent = fmtDate(date);
   if (nextBtn) nextBtn.disabled  = date >= today;
 
+  const picker  = document.getElementById('log-date-picker');
+  if (picker)  { picker.value = date; picker.max = today; }
+  const gotoBtn = document.getElementById('log-goto-today');
+  if (gotoBtn)   gotoBtn.classList.toggle('hidden', date === today);
+
   const saved = entriesForDate(date)
     .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
@@ -749,9 +758,9 @@ function renderLog(date) {
     }).join('');
   }
 
-  const totalMs    = saved.reduce((s, e) => s + durationMs(e), 0);
-  const billableMs = saved.filter(e => getActivity(e.activityId)?.billable).reduce((s, e) => s + durationMs(e), 0);
-  const deepMs     = saved.filter(e => getActivity(e.activityId)?.deepWork).reduce((s, e) => s + durationMs(e), 0);
+  const totalMs    = display.reduce((s, e) => s + durationMs(e), 0);
+  const billableMs = display.filter(e => getActivity(e.activityId)?.billable).reduce((s, e) => s + durationMs(e), 0);
+  const deepMs     = display.filter(e => getActivity(e.activityId)?.deepWork).reduce((s, e) => s + durationMs(e), 0);
 
   if (summary) {
     summary.innerHTML = `
@@ -805,8 +814,17 @@ function saveEditedNote(entryId) {
 function changeLogDate(delta) {
   const d = new Date(state.logDate + 'T00:00:00');
   d.setDate(d.getDate() + delta);
-  const next = d.toISOString().split('T')[0];
+  const next = localDateStr(d);
   if (next <= todayStr()) renderLog(next);
+}
+
+function openDatePicker() {
+  const picker = document.getElementById('log-date-picker');
+  if (picker) picker.click();
+}
+
+function onLogDatePick(val) {
+  if (val && val <= todayStr()) renderLog(val);
 }
 
 function deleteEntry(id) {
@@ -1672,8 +1690,11 @@ function init() {
   load();
 
   const updateClock = () => {
-    const el = document.getElementById('current-time');
-    if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const timeEl = document.getElementById('current-time');
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateEl = document.getElementById('header-date');
+    if (dateEl) dateEl.textContent = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
   updateClock();
   setInterval(updateClock, 30000);
