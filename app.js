@@ -150,7 +150,7 @@ function load() {
     : DEFAULT_ACTIVITIES.map(a => ({ ...a }));
 
   const entries = localStorage.getItem(KEYS.ENTRIES);
-  state.entries = entries ? JSON.parse(entries) : [];
+  state.entries = entries ? JSON.parse(entries).map(e => ({ tags: [], ...e })) : [];
 
   const notes = localStorage.getItem(KEYS.NOTES);
   state.notes = notes ? JSON.parse(notes) : {};
@@ -191,22 +191,77 @@ function renderActivityTags(act) {
   }).join('');
 }
 
+function renderEntryTags(entry) {
+  if (!entry?.tags?.length) return '';
+  return entry.tags.map(tagId => {
+    const tag = state.tags.find(t => t.id === tagId);
+    if (!tag) return '';
+    return `<span class="tag-pill" style="background:${tag.color}22;color:${tag.color};border-color:${tag.color}55">${tag.name}</span>`;
+  }).join('');
+}
+
 // ---- TIMER ----
 
 function startActivity(actId) {
-  // Commit any pending entry (note skipped, switching activities)
+  // Commit any pending entry (switching activities)
   if (state.pendingEntry) {
     state.entries.push(state.pendingEntry);
     state.pendingEntry = null;
     closeModal();
   }
-
-  // Stop current active entry silently (switching activities)
+  // Stop current active entry silently
   if (state.activeEntry) {
     state.entries.push({ ...state.activeEntry, endTime: nowISO() });
     state.activeEntry = null;
   }
 
+  if (state.tags.length > 0) {
+    showActivityTagPicker(actId);
+  } else {
+    _doStartActivity(actId, []);
+  }
+}
+
+function showActivityTagPicker(actId) {
+  const act = getActivity(actId);
+  openModal(`
+    <div class="tag-picker-modal">
+      <div class="tag-picker-header">
+        <span class="picker-icon">${act?.icon || '▶'}</span>
+        <span class="picker-name">${act?.name || ''}</span>
+      </div>
+      <p class="modal-subtitle">Tag this session</p>
+      <div class="tag-selector">
+        ${state.tags.map(tag => `
+          <button type="button"
+                  class="tag-chip"
+                  data-tag-id="${tag.id}"
+                  style="--tag-color:${tag.color}"
+                  onclick="this.classList.toggle('selected')">
+            ${tag.name}
+          </button>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="skipTagPicker('${actId}')">Skip</button>
+        <button class="btn-primary" onclick="startWithPickedTags('${actId}')">Start</button>
+      </div>
+    </div>
+  `);
+}
+
+function skipTagPicker(actId) {
+  closeModal();
+  _doStartActivity(actId, []);
+}
+
+function startWithPickedTags(actId) {
+  const tags = [...document.querySelectorAll('.tag-chip.selected')].map(c => c.dataset.tagId);
+  closeModal();
+  _doStartActivity(actId, tags);
+}
+
+function _doStartActivity(actId, tags) {
   state.activeEntry = {
     id:         uid(),
     activityId: actId,
@@ -214,10 +269,10 @@ function startActivity(actId) {
     endTime:    null,
     date:       todayStr(),
     note:       '',
+    tags:       tags || [],
   };
   state.breakShown = false;
 
-  // Increment use count
   const act = state.activities.find(a => a.id === actId);
   if (act) act.useCount = (act.useCount || 0) + 1;
 
@@ -243,16 +298,33 @@ function stopTimer() {
 }
 
 function showNoteModal(entry) {
+  const entryTagIds = entry.tags || [];
   openModal(`
     <div class="note-modal">
-      <h3>Add a Note</h3>
-      <p class="modal-subtitle">Optional — add context to this time entry</p>
+      <h3>Session Complete</h3>
+      ${state.tags.length > 0 ? `
       <div class="input-group">
-        <textarea id="entry-note" rows="3" placeholder="What were you working on? Any details…">${entry.note || ''}</textarea>
+        <label class="input-label">Tag this session</label>
+        <div class="tag-selector">
+          ${state.tags.map(tag => `
+            <button type="button"
+                    class="tag-chip ${entryTagIds.includes(tag.id) ? 'selected' : ''}"
+                    data-tag-id="${tag.id}"
+                    style="--tag-color:${tag.color}"
+                    onclick="this.classList.toggle('selected')">
+              ${tag.name}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+      <div class="input-group">
+        <label class="input-label">Note <span class="label-optional">(optional)</span></label>
+        <textarea id="entry-note" rows="3" placeholder="What were you working on?">${entry.note || ''}</textarea>
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="commitWithNote(false)">Skip</button>
-        <button class="btn-primary" onclick="commitWithNote(true)">Save Note</button>
+        <button class="btn-primary" onclick="commitWithNote(true)">Save</button>
       </div>
     </div>
   `);
@@ -261,6 +333,9 @@ function showNoteModal(entry) {
 function commitWithNote(saveNote) {
   const entry = state.pendingEntry;
   if (!entry) { closeModal(); return; }
+
+  // Always capture any tags selected in the modal
+  entry.tags = [...document.querySelectorAll('.tag-chip.selected')].map(c => c.dataset.tagId);
 
   if (saveNote) {
     entry.note = document.getElementById('entry-note')?.value?.trim() || '';
@@ -278,6 +353,45 @@ function commitWithNote(saveNote) {
   if (new Date().getHours() >= 16 && !state.notes[todayStr()]) {
     setTimeout(showWellbeingModal, 600);
   }
+}
+
+function showActiveEntryTagEdit() {
+  const entry = state.activeEntry;
+  if (!entry || !state.tags.length) return;
+  const act = getActivity(entry.activityId);
+  openModal(`
+    <div class="tag-picker-modal">
+      <div class="tag-picker-header">
+        <span class="picker-icon">${act?.icon || '▶'}</span>
+        <span class="picker-name">${act?.name || ''}</span>
+      </div>
+      <p class="modal-subtitle">Tag this session</p>
+      <div class="tag-selector">
+        ${state.tags.map(tag => `
+          <button type="button"
+                  class="tag-chip ${(entry.tags || []).includes(tag.id) ? 'selected' : ''}"
+                  data-tag-id="${tag.id}"
+                  style="--tag-color:${tag.color}"
+                  onclick="this.classList.toggle('selected')">
+            ${tag.name}
+          </button>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveActiveEntryTags()">Update</button>
+      </div>
+    </div>
+  `);
+}
+
+function saveActiveEntryTags() {
+  if (!state.activeEntry) { closeModal(); return; }
+  state.activeEntry.tags = [...document.querySelectorAll('.tag-chip.selected')].map(c => c.dataset.tagId);
+  save();
+  closeModal();
+  renderTrack();
+  showToast('Session tagged');
 }
 
 function startTimerTick() {
@@ -376,6 +490,7 @@ function renderTrack() {
     if (state.activeEntry) {
       const act     = getActivity(state.activeEntry.activityId);
       const elapsed = Date.now() - new Date(state.activeEntry.startTime);
+      const entryTagsHtml = renderEntryTags(state.activeEntry);
       section.innerHTML = `
         <div class="active-timer" style="--activity-color: ${act?.color || '#6366f1'}">
           <div class="active-pulse" style="background: ${act?.color || '#6366f1'}"></div>
@@ -387,7 +502,8 @@ function renderTrack() {
             <div class="active-tags">
               ${act?.billable ? '<span class="tag tag-billable">Billable</span>' : ''}
               ${act?.deepWork ? '<span class="tag tag-deep">Deep Work</span>' : ''}
-              ${renderActivityTags(act)}
+              ${entryTagsHtml ? `<span class="active-entry-tags">${entryTagsHtml}</span>` : ''}
+              ${state.tags.length > 0 ? `<button class="btn-tag-edit" onclick="showActiveEntryTagEdit()" title="Tag this session">🏷</button>` : ''}
             </div>
           </div>
           <div class="active-right">
@@ -608,7 +724,7 @@ function renderLog(date) {
       const act  = getActivity(entry.activityId);
       const ms   = durationMs(entry);
       const live = !entry.endTime;
-      const tagsHtml = renderActivityTags(act);
+      const tagsHtml = renderEntryTags(entry);
       return `
         <div class="log-entry" style="border-left-color: ${act?.color || '#64748b'}">
           <div class="log-entry-icon">${act?.icon || '•'}</div>
@@ -722,6 +838,7 @@ function renderToday() {
   const utilPct    = totalMs > 0 ? Math.round((billableMs / totalMs) * 100) : 0;
 
   renderTodayChart(all);
+  renderTagBreakdown(all);
 
   const metricsEl = document.getElementById('today-metrics');
   if (metricsEl) {
@@ -840,6 +957,47 @@ function renderTodayChart(entries) {
       cutout: '58%',
     },
   });
+}
+
+function renderTagBreakdown(entries) {
+  const el = document.getElementById('today-tag-breakdown');
+  if (!el) return;
+
+  const byTag = {};
+  entries.forEach(e => {
+    (e.tags || []).forEach(tagId => {
+      const tag = state.tags.find(t => t.id === tagId);
+      if (!tag) return;
+      if (!byTag[tagId]) byTag[tagId] = { name: tag.name, color: tag.color, ms: 0 };
+      byTag[tagId].ms += durationMs(e);
+    });
+  });
+
+  const data = Object.values(byTag).filter(d => d.ms > 0).sort((a, b) => b.ms - a.ms);
+
+  if (!data.length) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const maxMs = data[0].ms;
+  el.innerHTML = `
+    <div class="tag-breakdown">
+      <div class="tag-breakdown-title">Time by Tag</div>
+      ${data.map(d => `
+        <div class="tag-breakdown-row">
+          <div class="tag-breakdown-label">
+            <span class="tag-breakdown-dot" style="background:${d.color}"></span>
+            ${d.name}
+          </div>
+          <div class="tag-breakdown-bar-wrap">
+            <div class="tag-breakdown-bar" style="width:${Math.round((d.ms / maxMs) * 100)}%;background:${d.color}44;border-left:3px solid ${d.color}"></div>
+          </div>
+          <div class="tag-breakdown-value">${fmtHours(d.ms)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // ============================================================
@@ -1411,7 +1569,7 @@ function exportCSV() {
   const rows = state.entries.map(e => {
     const act  = getActivity(e.activityId);
     const mins = Math.round(durationMs(e) / 60000);
-    const tags = (act?.tags || [])
+    const tags = (e.tags || [])
       .map(tid => state.tags.find(t => t.id === tid)?.name || '')
       .filter(Boolean).join('; ');
     return [
@@ -1526,7 +1684,7 @@ function init() {
   renderTrack();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/TimeFlow/sw.js').catch(() => {});
   }
 }
 
