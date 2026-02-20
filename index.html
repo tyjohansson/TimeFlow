@@ -21,7 +21,10 @@
         <span class="app-name">TimeFlow</span>
         <div class="header-right">
           <span id="active-dot" class="header-active-dot hidden"></span>
-          <span id="current-time" class="header-time"></span>
+          <div class="header-datetime">
+            <span id="header-date" class="header-date"></span>
+            <span id="current-time" class="header-time"></span>
+          </div>
         </div>
       </div>
     </header>
@@ -41,7 +44,12 @@
       <div id="tab-log" class="tab-pane">
         <div class="log-date-nav">
           <button class="date-nav-btn" onclick="changeLogDate(-1)">&#8249;</button>
-          <span id="log-date-label" class="log-date-label"></span>
+          <div class="log-date-center">
+            <span id="log-date-label" class="log-date-label"></span>
+            <button id="log-goto-today" class="log-goto-today hidden" onclick="renderLog(todayStr())">&#8593; Jump to Today</button>
+          </div>
+          <button class="date-nav-btn" onclick="openDatePicker()" title="Pick a date">&#128197;</button>
+          <input type="date" id="log-date-picker" class="hidden-date-input" onchange="onLogDatePick(this.value)">
           <button class="date-nav-btn" onclick="changeLogDate(1)" id="log-next-btn">&#8250;</button>
         </div>
         <div id="log-entries" class="log-entries"></div>
@@ -59,6 +67,7 @@
             </div>
           </div>
           <div id="today-metrics" class="metrics-grid"></div>
+          <div id="today-tag-breakdown"></div>
           <div id="today-wellbeing" class="wellbeing-section"></div>
           <div id="today-wins" class="wins-section"></div>
         </div>
