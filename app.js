@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   dailyDeepWorkGoal: 4,
   breakReminderMins: 90,
   smartSort:         true,
+  timezone:          '',
 };
 
 // ---- STATE ----
@@ -58,8 +59,30 @@ const state = {
 
 // ---- DATE UTILS ----
 
+// Returns the configured timezone, or falls back to device timezone.
+// try/catch handles the one call that happens during state literal evaluation
+// (before `state` is fully assigned).
+function getTimezone() {
+  try {
+    return (state.settings && state.settings.timezone) ||
+           Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch (e) {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  }
+}
+
 function localDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone:  getTimezone(),
+      year:      'numeric',
+      month:     '2-digit',
+      day:       '2-digit',
+    }).format(d);
+  } catch (e) {
+    // Fallback: system-local components
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
 }
 
 function todayStr() {
@@ -71,7 +94,7 @@ function nowISO() {
 }
 
 function formatTimeStr(iso) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: getTimezone() });
 }
 
 function durationMs(entry) {
@@ -101,8 +124,11 @@ function fmtElapsed(ms) {
 
 function fmtDate(dateStr) {
   const today = todayStr();
-  const d = new Date(dateStr + 'T00:00:00');
-  const calStr = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  // Parse the date string into explicit components and use noon to avoid
+  // DST-at-midnight edge cases in the weekday display.
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const calStr = new Date(y, m - 1, d, 12).toLocaleDateString([],
+    { weekday: 'short', month: 'short', day: 'numeric' });
   if (dateStr === today) return `Today · ${calStr}`;
   const yest = new Date();
   yest.setDate(yest.getDate() - 1);
@@ -1205,6 +1231,84 @@ function renderWeekChart(dates, today) {
 // RENDER: SETTINGS
 // ============================================================
 
+const TZ_GROUPS = [
+  { label: 'Americas', zones: [
+    { id: 'America/New_York',               name: 'New York (Eastern)' },
+    { id: 'America/Chicago',                name: 'Chicago (Central)' },
+    { id: 'America/Denver',                 name: 'Denver (Mountain)' },
+    { id: 'America/Phoenix',                name: 'Phoenix (no DST)' },
+    { id: 'America/Los_Angeles',            name: 'Los Angeles (Pacific)' },
+    { id: 'America/Anchorage',              name: 'Anchorage (Alaska)' },
+    { id: 'America/Honolulu',               name: 'Honolulu (Hawaii)' },
+    { id: 'America/Toronto',                name: 'Toronto' },
+    { id: 'America/Vancouver',              name: 'Vancouver' },
+    { id: 'America/Mexico_City',            name: 'Mexico City' },
+    { id: 'America/Bogota',                 name: 'Bogotá' },
+    { id: 'America/Lima',                   name: 'Lima' },
+    { id: 'America/Santiago',               name: 'Santiago' },
+    { id: 'America/Sao_Paulo',              name: 'São Paulo' },
+    { id: 'America/Argentina/Buenos_Aires', name: 'Buenos Aires' },
+    { id: 'America/Halifax',                name: 'Halifax (Atlantic)' },
+  ]},
+  { label: 'Europe', zones: [
+    { id: 'Europe/London',    name: 'London' },
+    { id: 'Europe/Dublin',    name: 'Dublin' },
+    { id: 'Europe/Lisbon',    name: 'Lisbon' },
+    { id: 'Europe/Paris',     name: 'Paris' },
+    { id: 'Europe/Berlin',    name: 'Berlin' },
+    { id: 'Europe/Amsterdam', name: 'Amsterdam' },
+    { id: 'Europe/Rome',      name: 'Rome' },
+    { id: 'Europe/Madrid',    name: 'Madrid' },
+    { id: 'Europe/Stockholm', name: 'Stockholm' },
+    { id: 'Europe/Helsinki',  name: 'Helsinki' },
+    { id: 'Europe/Warsaw',    name: 'Warsaw' },
+    { id: 'Europe/Athens',    name: 'Athens' },
+    { id: 'Europe/Istanbul',  name: 'Istanbul' },
+    { id: 'Europe/Moscow',    name: 'Moscow' },
+  ]},
+  { label: 'Africa', zones: [
+    { id: 'Africa/Cairo',        name: 'Cairo' },
+    { id: 'Africa/Lagos',        name: 'Lagos (West Africa)' },
+    { id: 'Africa/Nairobi',      name: 'Nairobi (East Africa)' },
+    { id: 'Africa/Johannesburg', name: 'Johannesburg' },
+  ]},
+  { label: 'Asia & Middle East', zones: [
+    { id: 'Asia/Jerusalem',  name: 'Jerusalem' },
+    { id: 'Asia/Dubai',      name: 'Dubai' },
+    { id: 'Asia/Tehran',     name: 'Tehran' },
+    { id: 'Asia/Karachi',    name: 'Karachi' },
+    { id: 'Asia/Kolkata',    name: 'Kolkata (India)' },
+    { id: 'Asia/Kathmandu',  name: 'Kathmandu' },
+    { id: 'Asia/Dhaka',      name: 'Dhaka' },
+    { id: 'Asia/Bangkok',    name: 'Bangkok' },
+    { id: 'Asia/Singapore',  name: 'Singapore' },
+    { id: 'Asia/Shanghai',   name: 'Shanghai / Beijing' },
+    { id: 'Asia/Hong_Kong',  name: 'Hong Kong' },
+    { id: 'Asia/Tokyo',      name: 'Tokyo' },
+    { id: 'Asia/Seoul',      name: 'Seoul' },
+  ]},
+  { label: 'Australia & Pacific', zones: [
+    { id: 'Australia/Perth',     name: 'Perth' },
+    { id: 'Australia/Adelaide',  name: 'Adelaide' },
+    { id: 'Australia/Sydney',    name: 'Sydney' },
+    { id: 'Australia/Melbourne', name: 'Melbourne' },
+    { id: 'Pacific/Auckland',    name: 'Auckland' },
+    { id: 'Pacific/Fiji',        name: 'Fiji' },
+  ]},
+  { label: 'Universal', zones: [
+    { id: 'UTC', name: 'UTC (Universal)' },
+  ]},
+];
+
+function tzOffset(tzId) {
+  try {
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone: tzId, timeZoneName: 'shortOffset',
+    }).formatToParts(new Date());
+    return parts.find(p => p.type === 'timeZoneName')?.value || '';
+  } catch (e) { return ''; }
+}
+
 function renderSettings() {
   const el = document.getElementById('settings-content');
   if (!el) return;
@@ -1304,6 +1408,32 @@ function renderSettings() {
     </div>
 
     <div class="settings-section">
+      <h3>Time Zone</h3>
+      ${(() => {
+        const deviceTZ  = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const currentTZ = getTimezone();
+        const offset    = tzOffset(currentTZ);
+        const nowInTZ   = new Date().toLocaleTimeString([],
+          { hour: '2-digit', minute: '2-digit', timeZone: currentTZ });
+        const sel = state.settings.timezone;
+        const groupsHtml = TZ_GROUPS.map(g => `
+          <optgroup label="${g.label}">
+            ${g.zones.map(z => {
+              const off  = tzOffset(z.id);
+              const mark = sel === z.id ? ' selected' : '';
+              return `<option value="${z.id}"${mark}>${off ? off + ' — ' : ''}${z.name}</option>`;
+            }).join('')}
+          </optgroup>`).join('');
+        return `
+          <select class="tz-select" onchange="saveTZ(this.value)">
+            <option value=""${!sel ? ' selected' : ''}>Device Default (${deviceTZ})</option>
+            ${groupsHtml}
+          </select>
+          <p class="tz-note">${offset} · ${nowInTZ} now in selected zone</p>`;
+      })()}
+    </div>
+
+    <div class="settings-section">
       <h3>Data</h3>
       <button class="btn-outline btn-full" onclick="exportCSV()">&#8681; Export as CSV</button>
       <button class="btn-outline btn-full btn-danger-outline" onclick="confirmClear()">Clear All Data</button>
@@ -1329,6 +1459,17 @@ function saveSettings() {
   if (brk  > 0) state.settings.breakReminderMins = brk;
   save();
   showToast('Goals saved');
+}
+
+function saveTZ(val) {
+  state.settings.timezone = val;
+  save();
+  // Refresh every view so times and dates reflect the new zone
+  renderLog(todayStr());
+  renderToday();
+  renderWeek();
+  renderSettings();
+  showToast(val ? `Timezone: ${val.split('/').pop().replace(/_/g, ' ')}` : 'Using device timezone');
 }
 
 // ---- TAG MODAL ----
@@ -1691,10 +1832,13 @@ function init() {
 
   const updateClock = () => {
     const now = new Date();
+    const tz  = getTimezone();
     const timeEl = document.getElementById('current-time');
-    if (timeEl) timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString([],
+      { hour: '2-digit', minute: '2-digit', timeZone: tz });
     const dateEl = document.getElementById('header-date');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    if (dateEl) dateEl.textContent = now.toLocaleDateString([],
+      { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz });
   };
   updateClock();
   setInterval(updateClock, 30000);
