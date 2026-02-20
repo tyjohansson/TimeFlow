@@ -2,10 +2,10 @@
 
 const CACHE  = 'timeflow-v2';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/app.css',
-  '/app.js',
+  '/TimeFlow/',
+  '/TimeFlow/index.html',
+  '/TimeFlow/app.css',
+  '/TimeFlow/app.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 

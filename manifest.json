@@ -2,7 +2,7 @@
   "name": "TimeFlow",
   "short_name": "TimeFlow",
   "description": "Mobile time tracker for billing and productivity",
-  "start_url": "/",
+  "start_url": "/TimeFlow/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
