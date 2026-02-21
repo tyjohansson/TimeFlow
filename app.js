@@ -1309,6 +1309,31 @@ function tzOffset(tzId) {
   } catch (e) { return ''; }
 }
 
+function buildTZHtml() {
+  const deviceTZ  = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const currentTZ = getTimezone();
+  const offset    = tzOffset(currentTZ);
+  const nowInTZ   = new Date().toLocaleTimeString([],
+    { hour: '2-digit', minute: '2-digit', timeZone: currentTZ });
+  const sel = state.settings.timezone || '';
+
+  let opts = '<option value=""' + (!sel ? ' selected' : '') + '>Device Default (' + deviceTZ + ')</option>';
+  for (const g of TZ_GROUPS) {
+    opts += '<optgroup label="' + g.label + '">';
+    for (const z of g.zones) {
+      const off  = tzOffset(z.id);
+      const mark = sel === z.id ? ' selected' : '';
+      opts += '<option value="' + z.id + '"' + mark + '>'
+            + (off ? off + ' \u2014 ' : '') + z.name
+            + '</option>';
+    }
+    opts += '</optgroup>';
+  }
+
+  return '<select class="tz-select" onchange="saveTZ(this.value)">' + opts + '</select>'
+       + '<p class="tz-note">' + (offset || 'UTC') + ' \u00b7 ' + nowInTZ + ' now in selected zone</p>';
+}
+
 function renderSettings() {
   const el = document.getElementById('settings-content');
   if (!el) return;
@@ -1409,28 +1434,7 @@ function renderSettings() {
 
     <div class="settings-section">
       <h3>Time Zone</h3>
-      ${(() => {
-        const deviceTZ  = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const currentTZ = getTimezone();
-        const offset    = tzOffset(currentTZ);
-        const nowInTZ   = new Date().toLocaleTimeString([],
-          { hour: '2-digit', minute: '2-digit', timeZone: currentTZ });
-        const sel = state.settings.timezone;
-        const groupsHtml = TZ_GROUPS.map(g => `
-          <optgroup label="${g.label}">
-            ${g.zones.map(z => {
-              const off  = tzOffset(z.id);
-              const mark = sel === z.id ? ' selected' : '';
-              return `<option value="${z.id}"${mark}>${off ? off + ' — ' : ''}${z.name}</option>`;
-            }).join('')}
-          </optgroup>`).join('');
-        return `
-          <select class="tz-select" onchange="saveTZ(this.value)">
-            <option value=""${!sel ? ' selected' : ''}>Device Default (${deviceTZ})</option>
-            ${groupsHtml}
-          </select>
-          <p class="tz-note">${offset} · ${nowInTZ} now in selected zone</p>`;
-      })()}
+      ${buildTZHtml()}
     </div>
 
     <div class="settings-section">
