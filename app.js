@@ -14,20 +14,23 @@ const KEYS = {
 };
 
 const DEFAULT_TAGS = [
-  { id: 't1', name: 'Urgent', color: '#ef4444' },
-  { id: 't2', name: 'Focus',  color: '#8b5cf6' },
-  { id: 't3', name: 'Review', color: '#f59e0b' },
+  { id: 't1', name: 'Meeting / Call',      color: '#f59e0b' },
+  { id: 't2', name: 'Deep Work / Focus',   color: '#8b5cf6' },
+  { id: 't3', name: 'Creating / Building', color: '#6366f1' },
+  { id: 't4', name: 'Planning',            color: '#0ea5e9' },
+  { id: 't5', name: 'Reviewing',           color: '#10b981' },
+  { id: 't6', name: 'Learning',            color: '#06b6d4' },
+  { id: 't7', name: 'In Person',           color: '#f43f5e' },
 ];
 
 const DEFAULT_ACTIVITIES = [
-  { id: 'a1', name: 'Client Work', icon: '💼', color: '#6366f1', billable: true,  deepWork: true,  tags: [], useCount: 0 },
-  { id: 'a2', name: 'Deep Work',   icon: '🧠', color: '#8b5cf6', billable: false, deepWork: true,  tags: [], useCount: 0 },
-  { id: 'a3', name: 'Meeting',     icon: '📞', color: '#f59e0b', billable: true,  deepWork: false, tags: [], useCount: 0 },
-  { id: 'a4', name: 'Admin',       icon: '📧', color: '#64748b', billable: false, deepWork: false, tags: [], useCount: 0 },
-  { id: 'a5', name: 'Learning',    icon: '📚', color: '#10b981', billable: false, deepWork: true,  tags: [], useCount: 0 },
-  { id: 'a6', name: 'Break',       icon: '☕', color: '#06b6d4', billable: false, deepWork: false, tags: [], useCount: 0 },
-  { id: 'a7', name: 'Exercise',    icon: '🏃', color: '#f43f5e', billable: false, deepWork: false, tags: [], useCount: 0 },
-  { id: 'a8', name: 'Planning',    icon: '📋', color: '#0ea5e9', billable: true,  deepWork: false, tags: [], useCount: 0 },
+  { id: 'a1', name: 'Work',          icon: '💼', color: '#6366f1', billable: true,  deepWork: true,  tags: [], useCount: 0 },
+  { id: 'a2', name: 'Exercise',      icon: '🏃', color: '#f43f5e', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a3', name: 'Recovery',      icon: '😴', color: '#8b5cf6', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a4', name: 'Eating',        icon: '🍽️', color: '#f97316', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a5', name: 'Entertainment', icon: '🎮', color: '#06b6d4', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a6', name: 'Connection',    icon: '🤝', color: '#10b981', billable: false, deepWork: false, tags: [], useCount: 0 },
+  { id: 'a7', name: 'Break',         icon: '☕', color: '#64748b', billable: false, deepWork: false, tags: [], useCount: 0 },
 ];
 
 const DEFAULT_SETTINGS = {
