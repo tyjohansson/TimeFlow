@@ -1,11 +1,17 @@
 // TimeFlow Service Worker — offline-first caching
 
-const CACHE  = 'timeflow-v3';
+const CACHE = 'timeflow-v4';
+
+// Derive the base path from wherever the SW is installed
+// Works on GitHub Pages (/TimeFlow/) and Vercel (/) alike
+const BASE = self.location.pathname.replace(/sw\.js$/, '');
+
 const ASSETS = [
-  '/TimeFlow/',
-  '/TimeFlow/index.html',
-  '/TimeFlow/app.css',
-  '/TimeFlow/app.js',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'app.css',
+  BASE + 'app.js',
+  BASE + 'manifest.json',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
@@ -32,7 +38,7 @@ self.addEventListener('fetch', e => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
-      }).catch(() => caches.match('/TimeFlow/index.html'));
+      }).catch(() => caches.match(BASE + 'index.html'));
     })
   );
 });
