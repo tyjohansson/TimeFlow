@@ -1,6 +1,6 @@
 // TimeFlow Service Worker — offline-first caching
 
-const CACHE = 'timeflow-v4';
+const CACHE = 'timeflow-v5';
 
 // Derive the base path from wherever the SW is installed
 // Works on GitHub Pages (/TimeFlow/) and Vercel (/) alike
