@@ -1,0 +1,11 @@
+/app.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/app.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/manifest.json
+  Cache-Control: public, max-age=0, must-revalidate
